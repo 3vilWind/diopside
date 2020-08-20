@@ -1,8 +1,12 @@
-from core import analysis
+import angr
+
+from analysis.variable_propagation_analysis import SystemTableAnalysis
 
 
 def main():
-    pass
+    proj = angr.Project('')
+    angr.AnalysesHub.register_default('SystemTableAnalysis', SystemTableAnalysis)
+    proj.analyses.SystemTableAnalysis()
 
 
 if __name__ == '__main__':
