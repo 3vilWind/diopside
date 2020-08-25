@@ -1,20 +1,21 @@
-import angr
-
 from core.constants import EFI_SUCCESS
-from core.utils import uefi_function, mem_view_guid_to_str
+from core.uefi_function import UefiFunction
+from core.utils import mem_view_guid_to_str
 
 
-@uefi_function
-def locate_protocol(state: angr.SimState, protocol, registration, addr):
-    guid = state.mem[protocol].struct.EFI_GUID
-    str_guid = mem_view_guid_to_str(guid)
-    print('LocateProtocol[{}]'.format(str_guid))
-    interface_addr = state.interface_loader.locate_interface(str_guid)
-    state.memory.store(addr, interface_addr.to_bytes(8, byteorder='little'))
+class LocateProtocolFunction(UefiFunction):
+    FUNCTION_TYPE_NAME = 'EFI_LOCATE_PROTOCOL'
 
-    return EFI_SUCCESS
+    def perform(self, protocol, registration, addr):
+        guid = self.state.mem[protocol].struct.EFI_GUID
+        str_guid = mem_view_guid_to_str(guid)
+
+        interface_addr = self.state.interface_loader.locate_interface(str_guid)
+        self.state.memory.store(addr, interface_addr.to_bytes(8, byteorder='little'))
+
+        return EFI_SUCCESS
 
 
 hooks = {
-    'LocateProtocol': locate_protocol
+    'LocateProtocol': LocateProtocolFunction
 }

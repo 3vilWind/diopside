@@ -1,14 +1,14 @@
-import angr
-
 from core.constants import EFI_SUCCESS
-from core.utils import uefi_function
+from core.uefi_function import UefiFunction
 
 
-@uefi_function
-def get_smst_location(state: angr.SimState, this, smst):
-    return EFI_SUCCESS
+class GetSmstLocationFunction(UefiFunction):
+    FUNCTION_TYPE_NAME = 'EFI_SMM_GET_SMST_LOCATION2'
+
+    def perform(self, this, smst):
+        return EFI_SUCCESS
 
 
 hooks = {
-    'GetSmstLocation': get_smst_location
+    'GetSmstLocation': GetSmstLocationFunction
 }

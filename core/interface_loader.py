@@ -1,6 +1,6 @@
 import angr
 
-from .structure import write_struct, write_struct_hooks
+from .structure import write_struct, write_struct_hooks, resolve_hook_types
 
 
 class InterfaceLoaderPlugin(angr.SimStatePlugin):
@@ -30,6 +30,8 @@ class InterfaceLoaderPlugin(angr.SimStatePlugin):
         struct = self._types[name].with_arch(self.state.arch)
         addr = self.state.heap.allocate(0x1000)
         addr, hooks = write_struct_hooks(self.state, addr, struct,
-                                         self._interfaces_hooks[name] if name in self._interfaces_hooks else dict())
+                                         resolve_hook_types(self.state.project,
+                                                            self._interfaces_hooks.get(name, dict()),
+                                                            self._types))
         write_struct(self.state, addr, struct, hooks, name)
         return addr

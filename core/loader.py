@@ -1,16 +1,17 @@
 import configparser
+from importlib import resources
 
 import angr
 from angr.sim_type import parse_file
 
 from hooks import efi_boot_services
-from .structure import write_struct_hooks, write_struct
-
-from importlib import resources
+from .structure import write_struct_hooks, write_struct, resolve_hook_types
 
 
-def load_behemoth():
-    return parse_file(resources.read_text('data', 'behemoth.h'))
+def load_types(user_data=''):
+    defns, types = parse_file(resources.read_text('data', 'behemoth.h') + '\n' + user_data)
+    defns.update(types)
+    return defns
 
 
 def load_guid_db():
@@ -32,9 +33,10 @@ def write_system_table(types, state, hook_addr, struct_addr):
     bs = types['EFI_BOOT_SERVICES'].with_arch(state.arch)
     st = types['EFI_SYSTEM_TABLE'].with_arch(state.arch)
 
-    hook_addr, bs_hooks = write_struct_hooks(state, hook_addr, bs, efi_boot_services.hooks)
-    hook_addr, rs_hooks = write_struct_hooks(state, hook_addr, rs, {})
-    hook_addr, st_hooks = write_struct_hooks(state, hook_addr, st, {})
+    hook_addr, bs_hooks = write_struct_hooks(state, hook_addr, bs,
+                                             resolve_hook_types(state.project, efi_boot_services.hooks, types))
+    hook_addr, rs_hooks = write_struct_hooks(state, hook_addr, rs, dict())
+    hook_addr, st_hooks = write_struct_hooks(state, hook_addr, st, dict())
 
     bs_addr = struct_addr
     struct_addr = write_struct(state, struct_addr, bs, bs_hooks, 'BootServices')

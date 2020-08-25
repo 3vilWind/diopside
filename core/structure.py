@@ -3,11 +3,35 @@ from typing import Dict
 from angr import SimState
 from angr.sim_type import SimStruct, SimTypePointer, SimTypeFunction, SimType
 
-HOOK_SHELLCODE = b'\xc3'  # ret
+from .uefi_function import UefiFunction
+
+HOOK_SIZE = 1
 
 
-def dummy(state):
-    pass
+class DummyFunction(UefiFunction):
+    def __init__(self, proj, func_ty=None):
+        super().__init__(proj, func_ty, symbolic_return=True)
+
+    def perform(self, *args, **kwargs):
+        print('dummy called at {:x}'.format(self.state.solver.eval(self.state.ip)))
+
+
+def resolve_hook_types(proj, hooks, types):
+    result = dict()
+    for name, hook in hooks.items():
+        func_type = types.get(hook.FUNCTION_TYPE_NAME, None)
+        if isinstance(func_type, SimTypePointer):
+            func_type = func_type.pts_to
+        if not isinstance(func_type, SimTypeFunction) and func_type is not None:
+            raise RuntimeError('Type of hook is not a function!')
+
+        result[name] = hook(proj=proj, func_ty=func_type)
+    return result
+
+
+def write_func_hook(state: SimState, addr: int, hook):
+    state.project.hook(addr, hook)
+    return addr + HOOK_SIZE
 
 
 def write_struct_hooks(state: SimState, base_addr: int, struct: SimStruct, hooks: Dict):
@@ -16,14 +40,12 @@ def write_struct_hooks(state: SimState, base_addr: int, struct: SimStruct, hooks
 
     for name, ty in struct.fields.items():
         if isinstance(ty, SimTypePointer) and isinstance(ty.pts_to, SimTypeFunction):
-            state.memory.store(current_addr, HOOK_SHELLCODE)
-            state.project.hook(current_addr, hooks[name] if name in hooks else dummy)
-
+            state.project.hook(current_addr, hooks.get(name, DummyFunction(state.project)))
             results[name] = current_addr
-            current_addr += len(HOOK_SHELLCODE)
+            current_addr += HOOK_SIZE
         elif isinstance(ty, SimStruct):
             current_addr, nested_result = write_struct_hooks(state, current_addr, ty,
-                                                             hooks[name] if name in hooks else {})
+                                                             hooks.get(name, dict()))
             results[name] = nested_result
 
     return current_addr, results
@@ -53,4 +75,4 @@ def write_struct(state: SimState, base_addr: int, struct: SimStruct, values: Dic
     final_values = _prepare_values(state, struct, values, var_prefix)
     struct.store(state, base_addr, final_values)
 
-    return base_addr + struct.size
+    return base_addr + struct.size // state.arch.byte_width
