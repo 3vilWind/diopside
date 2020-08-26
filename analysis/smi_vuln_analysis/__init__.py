@@ -1,4 +1,5 @@
 import angr
+import claripy
 from angr.calling_conventions import SimCCMicrosoftAMD64
 
 from core.env_setup import setup_environment_by_file
@@ -27,8 +28,19 @@ class SmiVulnerabilitiesAnalysis(angr.Analysis):
         comm_buffer = state.heap.allocate(0x1000)
         comm_buffer_size = state.heap.allocate(0x8)
 
+        comm_buffer_var = claripy.BVS('UNTRUSTED_comm_buffer', 0x1000 * 8)
+        state.memory.store(comm_buffer, comm_buffer_var)
+
         cc.setup_callsite(state, args=[0x1337, context_addr, comm_buffer, comm_buffer_size],
                           ret_addr=self.project.simos.return_deadend)
+
+        def track_writes(st):
+            names = st.inspect.mem_write_expr.variables
+            for name in names:
+                if name.startswith('UNTRUSTED'):
+                    print('Write', st.inspect.mem_write_expr, 'to', st.inspect.mem_write_address)
+
+        state.inspect.b('mem_write', when=angr.BP_AFTER, action=track_writes)
 
         simgr = self.project.factory.simgr(state)
         simgr.run()

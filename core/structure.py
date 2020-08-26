@@ -62,7 +62,9 @@ def _prepare_values(state: SimState, struct: SimStruct, values: Dict, var_prefix
             raise RuntimeError('Unfilled function pointer!')
         elif isinstance(ty, SimType):
             if name in values:
-                result[name] = values[name]
+                var = state.solver.BVS(field_fullname, ty.size)
+                state.solver.add(var == values[name])
+                result[name] = var
             else:
                 result[name] = state.solver.BVS(field_fullname, ty.size)
         else:
@@ -76,3 +78,21 @@ def write_struct(state: SimState, base_addr: int, struct: SimStruct, values: Dic
     struct.store(state, base_addr, final_values)
 
     return base_addr + struct.size // state.arch.byte_width
+
+
+def write_struct_type_with_hooks(state, struct_type, struct_addr, hook_addr=None, hooks=None, fields=None,
+                                 hook_types=None, var_prefix=''):
+    if fields is None:
+        fields = dict()
+    if hooks is None:
+        hooks = dict()
+    if hook_types is None:
+        hook_types = dict()
+    struct_type = struct_type.with_arch(state.arch)
+
+    next_hook_addr, hooks = write_struct_hooks(state, hook_addr, struct_type,
+                                               resolve_hook_types(state.project, hooks, hook_types))
+    hooks.update(fields)
+    next_struct_addr = write_struct(state, struct_addr, struct_type, hooks, var_prefix)
+
+    return next_struct_addr, next_hook_addr

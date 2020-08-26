@@ -1,3 +1,4 @@
+import claripy
 import yaml
 
 from core.structure import write_struct_hooks, write_struct, resolve_hook_types
@@ -44,4 +45,6 @@ def setup_environment(state, types, data):
                     hooks[field_name] = interfaces[points_to]
 
             write_struct(state, addr, interface_type, hooks)
-    return
+        elif item['type'] == 'untrusted':
+            var = claripy.BVS('UNTRUSTED', item['size'] * 8)
+            state.memory.store(addr, var)

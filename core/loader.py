@@ -5,7 +5,7 @@ import angr
 from angr.sim_type import parse_file
 
 from hooks import efi_boot_services
-from .structure import write_struct_hooks, write_struct, resolve_hook_types
+from .structure import write_struct_type_with_hooks
 
 
 def load_types(user_data=''):
@@ -29,23 +29,19 @@ def load_guid_db():
 
 
 def write_system_table(types, state, hook_addr, struct_addr):
-    rs = types['EFI_RUNTIME_SERVICES'].with_arch(state.arch)
-    bs = types['EFI_BOOT_SERVICES'].with_arch(state.arch)
-    st = types['EFI_SYSTEM_TABLE'].with_arch(state.arch)
-
-    hook_addr, bs_hooks = write_struct_hooks(state, hook_addr, bs,
-                                             resolve_hook_types(state.project, efi_boot_services.hooks, types))
-    hook_addr, rs_hooks = write_struct_hooks(state, hook_addr, rs, dict())
-    hook_addr, st_hooks = write_struct_hooks(state, hook_addr, st, dict())
-
-    bs_addr = struct_addr
-    struct_addr = write_struct(state, struct_addr, bs, bs_hooks, 'BootServices')
     rs_addr = struct_addr
-    struct_addr = write_struct(state, struct_addr, rs, rs_hooks, 'RuntimeServices')
-    st_addr = struct_addr
-    st_hooks.update({'RuntimeServices': rs_addr, 'BootServices': bs_addr})
-    struct_addr = write_struct(state, struct_addr, st, st_hooks, 'SystemTable')
-
+    bs_addr, hook_addr = write_struct_type_with_hooks(state, types['EFI_RUNTIME_SERVICES'], struct_addr, hook_addr,
+                                                      hooks=efi_boot_services.hooks, hook_types=types,
+                                                      var_prefix='RuntimeServices')
+    st_addr, hook_addr = write_struct_type_with_hooks(state, types['EFI_BOOT_SERVICES'], bs_addr, hook_addr,
+                                                      hooks=efi_boot_services.hooks, hook_types=types,
+                                                      var_prefix='BootServices')
+    next_addr, next_hook_addr = write_struct_type_with_hooks(state, types['EFI_SYSTEM_TABLE'], st_addr, hook_addr,
+                                                             hooks=efi_boot_services.hooks, hook_types=types,
+                                                             fields={'RuntimeServices': rs_addr,
+                                                                     'BootServices': bs_addr,
+                                                                     'NumberOfTableEntries': 0},
+                                                             var_prefix='SystemTable')
     return st_addr
 
 
